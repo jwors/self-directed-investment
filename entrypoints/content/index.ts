@@ -506,6 +506,118 @@ function initContentScript() {
       const jobs = getAllJobsOnPage();
       sendResponse(jobs);
     }
+    else if (message.type === 'TEST_DOM') {
+      // DOM诊断测试
+      const result = runDomDiagnosis();
+      sendResponse(result);
+    }
     return true;
   });
+}
+
+// DOM诊断测试函数
+function runDomDiagnosis() {
+  const diagnosis = {
+    jobLinksCount: 0,
+    jobLinkExamples: [] as Array<{ href: string; text: string; parentClass: string }>,
+    salaryElements: [] as Array<{ class: string; text: string; parentClass: string }>,
+    possibleContainers: [] as Array<{ class: string; childCount: number; jobLinksCount: number }>,
+    pageUrl: window.location.href,
+    readyState: document.readyState,
+    // 新增：所有链接分析
+    allLinksAnalysis: [] as Array<{ href: string; text: string; containsJob: boolean }>,
+    // 新增：检测职位卡片可能的结构
+    possibleJobCards: [] as Array<{
+      elementTag: string;
+      class: string;
+      innerTextPreview: string;
+      hasSalary: boolean;
+      childCount: number;
+    }>,
+    // 新增：检测包含职位关键词的元素
+    jobKeywordElements: [] as Array<{ text: string; class: string; tag: string }>,
+  };
+
+  // 测试1：分析所有链接，找出可能是职位的
+  const allLinks = document.querySelectorAll('a');
+  const linkHrefs = new Set<string>();
+  allLinks.forEach((link) => {
+    const href = link.href;
+    // 避免重复
+    if (linkHrefs.has(href)) return;
+    linkHrefs.add(href);
+
+    // 检查是否包含职位相关关键词
+    const text = link.textContent?.trim() || '';
+    const isJobRelated = href.includes('job') ||
+                         text.includes('工程师') ||
+                         text.includes('开发') ||
+                         text.includes('经理') ||
+                         text.includes('专员') ||
+                         text.includes('设计') ||
+                         text.includes('产品') ||
+                         text.includes('运营') ||
+                         text.includes('测试') ||
+                         text.includes('架构') ||
+                         text.includes('数据') ||
+                         text.includes('算法');
+
+    if (diagnosis.allLinksAnalysis.length < 20) {
+      diagnosis.allLinksAnalysis.push({
+        href: href.substring(0, 100),
+        text: text.substring(0, 30),
+        containsJob: isJobRelated,
+      });
+    }
+  });
+
+  // 测试2：查找包含薪资格式 AND 职位关键词的元素组合（真正的职位卡片）
+  const elementsWithSalary = document.querySelectorAll('*');
+  const salaryParentElements = new Set<Element>();
+
+  elementsWithSalary.forEach((el) => {
+    const text = el.textContent?.trim();
+    if (text && /\d+[-·]\d+K/.test(text) && el.children.length <= 3) {
+      // 找到薪资元素的父级（可能是职位卡片）
+      let parent = el.parentElement;
+      for (let i = 0; i < 5 && parent; i++) {
+        const parentText = parent.textContent || '';
+        // 父级包含职位关键词+薪资，很可能是职位卡片
+        if (parentText.length > 20 && parentText.length < 200 &&
+            /工程师|开发|经理|专员|设计|产品|运营|测试/.test(parentText)) {
+          salaryParentElements.add(parent);
+        }
+        parent = parent.parentElement;
+      }
+    }
+  });
+
+  salaryParentElements.forEach((el) => {
+    const classStr = el.className?.toString() || '';
+    diagnosis.possibleJobCards.push({
+      elementTag: el.tagName,
+      class: classStr.substring(0, 50),
+      innerTextPreview: (el.textContent || '').substring(0, 100).replace(/\n+/g, ' | '),
+      hasSalary: /\d+[-·]\d+K/.test(el.textContent || ''),
+      childCount: el.children.length,
+    });
+  });
+
+  // 测试3：检测class中包含"job"或"card"的元素
+  document.querySelectorAll('[class*="job"], [class*="card"], [class*="item"]').forEach((el) => {
+    const text = el.textContent?.trim() || '';
+    if (text.length > 20 && text.length < 500 && /\d+K/.test(text)) {
+      diagnosis.jobKeywordElements.push({
+        text: text.substring(0, 80).replace(/\n+/g, ' | '),
+        class: (el.className?.toString() || '').substring(0, 50),
+        tag: el.tagName,
+      });
+    }
+  });
+
+  // 限制数量
+  diagnosis.possibleJobCards = diagnosis.possibleJobCards.slice(0, 5);
+  diagnosis.jobKeywordElements = diagnosis.jobKeywordElements.slice(0, 10);
+
+  return diagnosis;
 }
