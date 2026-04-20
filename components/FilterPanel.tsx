@@ -23,27 +23,39 @@ const SALARY_PRESET_OPTIONS = [
   { label: '50K以上', min: 50, max: 200 },
 ];
 
+const BOSS_ACTIVE_PRESET_OPTIONS = [
+  { label: '不限', value: 9999 },
+  { label: '今日', value: 24 },
+  { label: '3日内', value: 72 },
+  { label: '本周', value: 168 },
+  { label: '2周内', value: 336 },
+];
+
 function FilterPanel() {
   const [config, setConfig] = useState<UserConfig>(DEFAULT_CONFIG);
   const [saved, setSaved] = useState(false);
   const [salaryMinStr, setSalaryMinStr] = useState('0');
   const [salaryMaxStr, setSalaryMaxStr] = useState('100');
+  const [bossActiveStr, setBossActiveStr] = useState('24');
 
   useEffect(() => {
     getUserConfig().then((cfg) => {
       setConfig(cfg);
       setSalaryMinStr(String(cfg.salaryMin));
       setSalaryMaxStr(String(cfg.salaryMax));
+      setBossActiveStr(String(cfg.bossActiveHours));
     });
   }, []);
 
   const handleSave = async () => {
     const minVal = parseInt(salaryMinStr, 10) || 0;
     const maxVal = parseInt(salaryMaxStr, 10) || 200;
+    const bossActiveVal = parseInt(bossActiveStr, 10) || 24;
     const newConfig = {
       ...config,
       salaryMin: minVal,
       salaryMax: maxVal,
+      bossActiveHours: bossActiveVal,
     };
     setConfig(newConfig);
     await saveUserConfig(newConfig);
@@ -60,8 +72,12 @@ function FilterPanel() {
     setSalaryMaxStr(String(preset.max));
   };
 
-  // 处理薪资输入，保留用户输入的数字格式
-  const handleSalaryInput = (
+  const handleBossActivePreset = (preset: typeof BOSS_ACTIVE_PRESET_OPTIONS[number]) => {
+    setBossActiveStr(String(preset.value));
+  };
+
+  // 处理数字输入，保留用户输入的格式
+  const handleNumericInput = (
     value: string,
     setter: React.Dispatch<React.SetStateAction<string>>
   ) => {
@@ -96,7 +112,7 @@ function FilterPanel() {
           <input
             type="text"
             value={salaryMinStr}
-            onChange={(e) => handleSalaryInput(e.target.value, setSalaryMinStr)}
+            onChange={(e) => handleNumericInput(e.target.value, setSalaryMinStr)}
             className="w-20 border rounded px-2 py-1 text-sm text-center"
             placeholder="最低"
           />
@@ -104,7 +120,7 @@ function FilterPanel() {
           <input
             type="text"
             value={salaryMaxStr}
-            onChange={(e) => handleSalaryInput(e.target.value, setSalaryMaxStr)}
+            onChange={(e) => handleNumericInput(e.target.value, setSalaryMaxStr)}
             className="w-20 border rounded px-2 py-1 text-sm text-center"
             placeholder="最高"
           />
@@ -170,15 +186,34 @@ function FilterPanel() {
       {/* Boss活跃度 */}
       <section className="bg-white rounded-lg p-3 shadow-sm">
         <h3 className="font-medium text-gray-800 mb-2">⚡ Boss活跃时间</h3>
+        {/* 快捷预设 */}
+        <div className="flex flex-wrap gap-1 mb-2">
+          {BOSS_ACTIVE_PRESET_OPTIONS.map((opt) => (
+            <button
+              key={opt.label}
+              onClick={() => handleBossActivePreset(opt)}
+              className={`px-2 py-1 rounded text-xs cursor-pointer transition-colors ${
+                bossActiveStr === String(opt.value)
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {/* 自定义输入 */}
         <div className="flex items-center gap-2">
           <input
-            type="number"
-            value={config.bossActiveHours}
-            onChange={(e) => updateConfig('bossActiveHours', Number(e.target.value))}
-            className="w-20 border rounded px-2 py-1 text-sm"
+            type="text"
+            value={bossActiveStr}
+            onChange={(e) => handleNumericInput(e.target.value, setBossActiveStr)}
+            className="w-20 border rounded px-2 py-1 text-sm text-center"
+            placeholder="小时"
           />
           <span className="text-gray-500 text-sm">小时内活跃</span>
         </div>
+        <p className="text-xs text-gray-400 mt-1">只投递Boss在指定时间内活跃过的职位</p>
       </section>
 
       {/* 关键字筛选 */}
