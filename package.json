@@ -1,0 +1,42 @@
+{
+  "name": "zhi-pin-helper",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "智能求职助手 - Boss直聘自动化投递浏览器插件",
+  "scripts": {
+    "dev": "wxt dev",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "postinstall": "wxt prepare"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jwors/self-directed-investment.git"
+  },
+  "keywords": [
+    "boss",
+    "zhipin",
+    "job",
+    "recruitment",
+    "extension"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "wxt": "^0.20.25"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@wxt-dev/module-react": "^1.2.2",
+    "autoprefixer": "^10.5.0",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.2.2",
+    "typescript": "^6.0.3"
+  }
+}
