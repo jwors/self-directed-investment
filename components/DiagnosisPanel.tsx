@@ -3,6 +3,12 @@ import React, { useState } from 'react';
 interface DiagnosisResult {
   pageUrl: string;
   readyState: string;
+  jobLinksCount: number;
+  jobLinkExamples: Array<{
+    href: string;
+    text: string;
+    parentClass: string;
+  }>;
   allLinksAnalysis: Array<{
     href: string;
     text: string;
@@ -112,8 +118,30 @@ function DiagnosisPanel() {
             <div className="text-xs space-y-1">
               <p className="text-gray-500 truncate">URL: {result.pageUrl}</p>
               <p className="text-gray-500">状态: {result.readyState}</p>
+              <p className="text-gray-500">
+                职位链接数量:
+                <span className={`font-bold ml-1 ${result.jobLinksCount > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {result.jobLinksCount}
+                </span>
+              </p>
             </div>
           </section>
+
+          {/* 职位链接示例 */}
+          {result.jobLinkExamples.length > 0 && (
+            <section className="bg-white rounded-lg p-2 shadow-sm">
+              <h3 className="font-medium text-green-700 mb-1 text-xs">✅ 职位链接示例 ({result.jobLinkExamples.length})</h3>
+              <div className="space-y-1">
+                {result.jobLinkExamples.map((link, i) => (
+                  <div key={i} className="bg-green-50 p-2 rounded text-xs">
+                    <p className="text-gray-700 font-medium truncate">{link.text || '(空文本)'}</p>
+                    <p className="text-blue-600 truncate">{link.href}</p>
+                    <p className="text-gray-500">父级class: {link.parentClass || '(无)'}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* 可能的职位卡片 */}
           {result.possibleJobCards.length > 0 && (
@@ -171,18 +199,18 @@ function DiagnosisPanel() {
           </button>
 
           {/* 结果提示 */}
-          {result.possibleJobCards.length === 0 && (
+          {result.jobLinksCount === 0 && (
             <section className="bg-yellow-50 rounded-lg p-2 border border-yellow-200">
               <p className="text-xs text-yellow-700">
-                未检测到职位卡片结构，可能需要刷新页面或页面结构特殊
+                未检测到职位链接，请检查是否在职位列表页面
               </p>
             </section>
           )}
 
-          {result.possibleJobCards.length > 0 && (
+          {result.jobLinksCount > 0 && (
             <section className="bg-blue-50 rounded-lg p-2 border border-blue-200">
               <p className="text-xs text-blue-700">
-                已检测到职位卡片，请复制诊断结果发给开发者调整抓取逻辑
+                已检测到职位链接！请复制诊断结果继续调试
               </p>
             </section>
           )}

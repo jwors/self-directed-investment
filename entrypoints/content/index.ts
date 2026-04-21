@@ -81,8 +81,8 @@ function findJobLink(container: Element): { element: Element | null; jobId: stri
   const links = container.querySelectorAll('a');
   for (const link of links) {
     const href = link.getAttribute('href') || '';
-    // 匹配职位链接格式
-    const jobIdMatch = href.match(/\/job\/(\w+)/);
+    // 匹配职位链接格式: /job_detail/{id}.html
+    const jobIdMatch = href.match(/\/job_detail\/([a-zA-Z0-9_-]+)/);
     if (jobIdMatch) {
       return {
         element: link,
@@ -228,7 +228,7 @@ function findJobListContainer(): Element | null {
   for (const selector of candidates) {
     const el = document.querySelector(selector);
     if (el) {
-      const jobLinks = el.querySelectorAll('a[href*="/job/"]');
+      const jobLinks = el.querySelectorAll('a[href*="/job_detail/"]');
       if (jobLinks.length > 0) {
         return el;
       }
@@ -236,13 +236,13 @@ function findJobListContainer(): Element | null {
   }
 
   // 最后尝试：找包含多个职位链接的父容器
-  const allJobLinks = document.querySelectorAll('a[href*="/job/"]');
+  const allJobLinks = document.querySelectorAll('a[href*="/job_detail/"]');
   if (allJobLinks.length > 0) {
     // 找到第一个职位链接的最近公共父容器
     const firstLink = allJobLinks[0];
     let parent = firstLink.parentElement;
     while (parent) {
-      const linksInParent = parent.querySelectorAll('a[href*="/job/"]');
+      const linksInParent = parent.querySelectorAll('a[href*="/job_detail/"]');
       if (linksInParent.length >= allJobLinks.length / 2) {
         return parent;
       }
@@ -335,7 +335,7 @@ function getAllJobsOnPage(): JobInfo[] {
   const jobs: JobInfo[] = [];
 
   // 方式1：通过职位链接找到其父容器
-  const jobLinks = document.querySelectorAll('a[href*="/job/"]');
+  const jobLinks = document.querySelectorAll('a[href*="/job_detail/"]');
   const processedContainers = new Set<Element>();
 
   jobLinks.forEach((link) => {
@@ -343,7 +343,7 @@ function getAllJobsOnPage(): JobInfo[] {
     let container = link.parentElement;
     let depth = 0;
     while (container && depth < 5) {
-      // 检查是否是一个有效的职位卡片
+      // 检查是否是一个有效的职位卡片（包含薪资）
       const hasSalary = findSalaryElement(container).text;
       if (hasSalary && !processedContainers.has(container)) {
         processedContainers.add(container);
@@ -389,7 +389,7 @@ function observeJobList(callback: (jobs: JobInfo[]) => void) {
   let container: Element | null = null;
   for (const selector of possibleContainers) {
     const el = document.querySelector(selector);
-    if (el && el.querySelectorAll('a[href*="/job/"]').length > 0) {
+    if (el && el.querySelectorAll('a[href*="/job_detail/"]').length > 0) {
       container = el;
       break;
     }
@@ -524,9 +524,9 @@ function runDomDiagnosis() {
     possibleContainers: [] as Array<{ class: string; childCount: number; jobLinksCount: number }>,
     pageUrl: window.location.href,
     readyState: document.readyState,
-    // 新增：所有链接分析
+    // 所有链接分析
     allLinksAnalysis: [] as Array<{ href: string; text: string; containsJob: boolean }>,
-    // 新增：检测职位卡片可能的结构
+    // 检测职位卡片可能的结构
     possibleJobCards: [] as Array<{
       elementTag: string;
       class: string;
@@ -534,84 +534,78 @@ function runDomDiagnosis() {
       hasSalary: boolean;
       childCount: number;
     }>,
-    // 新增：检测包含职位关键词的元素
+    // 检测包含职位关键词的元素
     jobKeywordElements: [] as Array<{ text: string; class: string; tag: string }>,
   };
 
-  // 测试1：分析所有链接，找出可能是职位的
+  // 测试1：正确的职位链接检测（/job_detail/xxx.html）
+  const jobLinks = document.querySelectorAll('a[href*="/job_detail/"]');
+  diagnosis.jobLinksCount = jobLinks.length;
+  jobLinks.forEach((link, i) => {
+    if (i < 5) {
+      diagnosis.jobLinkExamples.push({
+        href: link.href.substring(0, 80),
+        text: (link.textContent?.trim() || '').substring(0, 40),
+        parentClass: (link.parentElement?.className?.toString() || '').substring(0, 30),
+      });
+    }
+  });
+
+  // 测试2：分析所有链接
   const allLinks = document.querySelectorAll('a');
   const linkHrefs = new Set<string>();
   allLinks.forEach((link) => {
     const href = link.href;
-    // 避免重复
     if (linkHrefs.has(href)) return;
     linkHrefs.add(href);
 
-    // 检查是否包含职位相关关键词
     const text = link.textContent?.trim() || '';
-    const isJobRelated = href.includes('job') ||
-                         text.includes('工程师') ||
-                         text.includes('开发') ||
-                         text.includes('经理') ||
-                         text.includes('专员') ||
-                         text.includes('设计') ||
-                         text.includes('产品') ||
-                         text.includes('运营') ||
-                         text.includes('测试') ||
-                         text.includes('架构') ||
-                         text.includes('数据') ||
-                         text.includes('算法');
+    const isJobDetail = href.includes('job_detail');
+    const hasJobKeyword = /工程师|开发|经理|专员|设计|产品|运营|测试|主管|销售|普工|物流/.test(text);
+    const isJobRelated = isJobDetail || hasJobKeyword;
 
-    if (diagnosis.allLinksAnalysis.length < 20) {
+    if (diagnosis.allLinksAnalysis.length < 25) {
       diagnosis.allLinksAnalysis.push({
-        href: href.substring(0, 100),
+        href: href.substring(0, 80),
         text: text.substring(0, 30),
         containsJob: isJobRelated,
       });
     }
   });
 
-  // 测试2：查找包含薪资格式 AND 职位关键词的元素组合（真正的职位卡片）
-  const elementsWithSalary = document.querySelectorAll('*');
-  const salaryParentElements = new Set<Element>();
-
-  elementsWithSalary.forEach((el) => {
-    const text = el.textContent?.trim();
-    if (text && /\d+[-·]\d+K/.test(text) && el.children.length <= 3) {
-      // 找到薪资元素的父级（可能是职位卡片）
-      let parent = el.parentElement;
-      for (let i = 0; i < 5 && parent; i++) {
-        const parentText = parent.textContent || '';
-        // 父级包含职位关键词+薪资，很可能是职位卡片
-        if (parentText.length > 20 && parentText.length < 200 &&
-            /工程师|开发|经理|专员|设计|产品|运营|测试/.test(parentText)) {
-          salaryParentElements.add(parent);
+  // 测试3：通过职位链接找父容器（职位卡片）
+  jobLinks.forEach((link) => {
+    let parent = link.parentElement;
+    for (let i = 0; i < 6 && parent; i++) {
+      const parentText = parent.textContent || '';
+      const hasSalary = /\d+[-·]\d+K/.test(parentText);
+      if (hasSalary && parentText.length > 30 && parentText.length < 400) {
+        if (diagnosis.possibleJobCards.length < 5) {
+          diagnosis.possibleJobCards.push({
+            elementTag: parent.tagName,
+            class: (parent.className?.toString() || '').substring(0, 50),
+            innerTextPreview: parentText.substring(0, 100).replace(/\s+/g, ' ').trim(),
+            hasSalary,
+            childCount: parent.children.length,
+          });
         }
-        parent = parent.parentElement;
+        break;
       }
+      parent = parent.parentElement;
     }
   });
 
-  salaryParentElements.forEach((el) => {
-    const classStr = el.className?.toString() || '';
-    diagnosis.possibleJobCards.push({
-      elementTag: el.tagName,
-      class: classStr.substring(0, 50),
-      innerTextPreview: (el.textContent || '').substring(0, 100).replace(/\n+/g, ' | '),
-      hasSalary: /\d+[-·]\d+K/.test(el.textContent || ''),
-      childCount: el.children.length,
-    });
-  });
-
-  // 测试3：检测class中包含"job"或"card"的元素
+  // 测试4：检测class中包含"job"或"card"或"item"的元素
   document.querySelectorAll('[class*="job"], [class*="card"], [class*="item"]').forEach((el) => {
     const text = el.textContent?.trim() || '';
-    if (text.length > 20 && text.length < 500 && /\d+K/.test(text)) {
-      diagnosis.jobKeywordElements.push({
-        text: text.substring(0, 80).replace(/\n+/g, ' | '),
-        class: (el.className?.toString() || '').substring(0, 50),
-        tag: el.tagName,
-      });
+    if (text.length > 20 && text.length < 300 && /\d+K/.test(text)) {
+      if (diagnosis.jobKeywordElements.length < 10) {
+        diagnosis.jobKeywordElements.push({
+          text: text.substring(0, 80).replace(/\s+/g, ' ').trim(),
+          class: (el.className?.toString() || '').substring(0, 50),
+          tag: el.tagName,
+        });
+      }
     }
   });
 
