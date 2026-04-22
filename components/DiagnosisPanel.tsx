@@ -9,6 +9,17 @@ interface DiagnosisResult {
     text: string;
     parentClass: string;
   }>;
+  salaryElements: Array<{
+    class: string;
+    text: string;
+    parentClass: string;
+    grandParentClass: string;
+  }>;
+  possibleContainers: Array<{
+    class: string;
+    childCount: number;
+    jobLinksCount: number;
+  }>;
   allLinksAnalysis: Array<{
     href: string;
     text: string;
@@ -130,13 +141,30 @@ function DiagnosisPanel() {
           {/* 职位链接示例 */}
           {result.jobLinkExamples.length > 0 && (
             <section className="bg-white rounded-lg p-2 shadow-sm">
-              <h3 className="font-medium text-green-700 mb-1 text-xs">✅ 职位链接示例 ({result.jobLinkExamples.length})</h3>
+              <h3 className="font-medium text-green-700 mb-1 text-xs">✅ 职位链接 ({result.jobLinksCount}个)</h3>
               <div className="space-y-1">
                 {result.jobLinkExamples.map((link, i) => (
                   <div key={i} className="bg-green-50 p-2 rounded text-xs">
                     <p className="text-gray-700 font-medium truncate">{link.text || '(空文本)'}</p>
-                    <p className="text-blue-600 truncate">{link.href}</p>
-                    <p className="text-gray-500">父级class: {link.parentClass || '(无)'}</p>
+                    <p className="text-blue-600 truncate text-[10px]">{link.href}</p>
+                    <p className="text-gray-500 text-[10px]">父级class: {link.parentClass || '(无)'}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 薪资元素 */}
+          {result.salaryElements.length > 0 && (
+            <section className="bg-white rounded-lg p-2 shadow-sm">
+              <h3 className="font-medium text-orange-700 mb-1 text-xs">💰 薪资元素 ({result.salaryElements.length}个)</h3>
+              <div className="space-y-1">
+                {result.salaryElements.map((el, i) => (
+                  <div key={i} className="bg-orange-50 p-2 rounded text-xs">
+                    <p className="text-orange-700 font-bold">{el.text}</p>
+                    <p className="text-gray-600 text-[10px]">class: {el.class}</p>
+                    <p className="text-gray-500 text-[10px]">父级: {el.parentClass}</p>
+                    <p className="text-gray-400 text-[10px]">祖父级: {el.grandParentClass}</p>
                   </div>
                 ))}
               </div>

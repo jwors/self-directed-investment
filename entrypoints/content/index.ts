@@ -57,8 +57,18 @@ function parseBossActiveTime(timeStr: string): number {
   return 9999;
 }
 
-// 通过特征查找薪资元素
+// 通过特征查找薪资元素 - 直接使用 job-salary class
 function findSalaryElement(container: Element): { element: Element | null; text: string } {
+  // 优先使用 job-salary class
+  const salaryEl = container.querySelector('.job-salary');
+  if (salaryEl) {
+    const text = salaryEl.textContent?.trim() || '';
+    if (text) {
+      return { element: salaryEl, text };
+    }
+  }
+
+  // 备选方案：遍历查找薪资格式
   const candidates = container.querySelectorAll('*');
   for (const el of candidates) {
     // 只检查直接文本内容，避免获取整个容器的文本
@@ -112,9 +122,31 @@ function findCompanyLink(container: Element): { element: Element | null; company
   return { element: null, companyId: '', name: '' };
 }
 
-// 查找标签类信息（学历、经验等）
+// 查找标签类信息（学历、经验等）- 使用 tag-list class
 function findTagElements(container: Element): { education: string; experience: string; location: string } {
   const result = { education: '', experience: '', location: '' };
+
+  // 优先使用 tag-list class
+  const tagList = container.querySelector('.tag-list');
+  if (tagList) {
+    const tags = tagList.querySelectorAll('li, span, div');
+    for (const tag of tags) {
+      const text = tag.textContent?.trim() || '';
+      if (!text || text.length > 15) continue;
+
+      // 学历匹配
+      if (/本科|硕士|博士|大专|学历不限|高中|中专/.test(text)) {
+        result.education = text;
+      }
+      // 经验匹配
+      else if (/经验|应届|实习|\d+[-·]\d+年|\d+年以上/.test(text)) {
+        result.experience = text;
+      }
+    }
+    return result;
+  }
+
+  // 备选方案：遍历查找
   const candidates = container.querySelectorAll('*');
 
   for (const el of candidates) {
@@ -143,9 +175,34 @@ function findTagElements(container: Element): { education: string; experience: s
   return result;
 }
 
-// 查找Boss活跃时间元素
+// 查找Boss活跃时间元素 - 使用 job-card-footer 结构
 function findBossActiveElement(container: Element): { bossName: string; bossTitle: string; activeTime: string } {
   const result = { bossName: '', bossTitle: '', activeTime: '' };
+
+  // 优先使用 job-card-footer 结构
+  const footer = container.querySelector('.job-card-footer');
+  if (footer) {
+    // Boss 名字
+    const bossNameEl = footer.querySelector('.boss-name');
+    if (bossNameEl) {
+      result.bossName = bossNameEl.textContent?.trim() || '';
+    }
+
+    // Boss 活跃时间图标（通常在 boss-online-icon 或类似位置）
+    const onlineIcon = footer.querySelector('.boss-online-icon, [class*="online"]');
+    if (onlineIcon) {
+      // 活跃时间可能在 title 属性或 aria-label 中
+      result.activeTime = onlineIcon.getAttribute('title') || onlineIcon.getAttribute('aria-label') || '';
+      if (!result.activeTime) {
+        // 或者直接取文本
+        result.activeTime = onlineIcon.textContent?.trim() || '';
+      }
+    }
+
+    return result;
+  }
+
+  // 备选方案：遍历查找
   const candidates = container.querySelectorAll('*');
 
   for (const el of candidates) {
@@ -179,8 +236,17 @@ function findBossActiveElement(container: Element): { bossName: string; bossTitl
   return result;
 }
 
-// 查找职位名称
+// 查找职位名称 - 使用 job-name class
 function findJobTitle(container: Element, jobLink: Element | null): string {
+  // 优先使用 job-name class
+  const jobNameEl = container.querySelector('.job-name');
+  if (jobNameEl) {
+    const text = jobNameEl.textContent?.trim() || '';
+    if (text) {
+      return text;
+    }
+  }
+
   // 如果有职位链接，优先从链接文本获取
   if (jobLink) {
     const linkText = jobLink.textContent?.trim();
@@ -518,24 +584,49 @@ function initContentScript() {
 // DOM诊断测试函数
 function runDomDiagnosis() {
   const diagnosis = {
-    jobLinksCount: 0,
-    jobLinkExamples: [] as Array<{ href: string; text: string; parentClass: string }>,
-    salaryElements: [] as Array<{ class: string; text: string; parentClass: string }>,
-    possibleContainers: [] as Array<{ class: string; childCount: number; jobLinksCount: number }>,
     pageUrl: window.location.href,
     readyState: document.readyState,
-    // 所有链接分析
+    jobLinksCount: 0,
+    jobLinkExamples: [] as Array<{ href: string; text: string; parentClass: string }>,
+    salaryElements: [] as Array<{ class: string; text: string; parentClass: string; grandParentClass: string }>,
+    possibleContainers: [] as Array<{ class: string; childCount: number; jobLinksCount: number }>,
     allLinksAnalysis: [] as Array<{ href: string; text: string; containsJob: boolean }>,
-    // 检测职位卡片可能的结构
     possibleJobCards: [] as Array<{
       elementTag: string;
       class: string;
       innerTextPreview: string;
       hasSalary: boolean;
       childCount: number;
+      childClasses?: string[];
+      salaryElements?: Array<{ class: string; text: string; tag: string }>;
+      siblingSalaries?: Array<{ class: string; text: string; tag: string }>;
     }>,
-    // 检测包含职位关键词的元素
     jobKeywordElements: [] as Array<{ text: string; class: string; tag: string }>,
+    salaryRelatedElements: [] as Array<{ class: string; text: string; tag: string; parentClass: string }>,
+    jobSalaryDeepAnalysis: [] as Array<{
+      class: string;
+      innerHTML: string;
+      textContent: string;
+      innerText: string;
+      hasChildren: boolean;
+      childrenCount: number;
+      display: string;
+      visibility: string;
+      opacity: string;
+      fontSize: string;
+      color: string;
+      position: string;
+      dataset: string;
+      title: string;
+      ariaLabel: string;
+      beforeContent: string;
+      beforeDisplay: string;
+      afterContent: string;
+      afterDisplay: string;
+      hasShadowRoot: boolean;
+      shadowContent: string;
+    }>,
+    allSalaryTextsInPage: [] as string[],
   };
 
   // 测试1：正确的职位链接检测（/job_detail/xxx.html）
@@ -551,7 +642,174 @@ function runDomDiagnosis() {
     }
   });
 
-  // 测试2：分析所有链接
+  // 测试2：深度查找薪资元素 - 检查每个包含薪资格式的元素及其层级
+  const allElements = document.querySelectorAll('*');
+  const seenSalaryElements = new Set<Element>();
+
+  allElements.forEach((el) => {
+    const text = el.textContent?.trim() || '';
+    // 匹配薪资格式
+    if (text && /^[\d·.]+\s*[-·]\s*[\d·.]+\s*[Kk万]$/i.test(text) && text.length < 15) {
+      if (!seenSalaryElements.has(el) && el.children.length <= 1) {
+        seenSalaryElements.add(el);
+        diagnosis.salaryElements.push({
+          class: (el.className?.toString() || 'no-class').substring(0, 30),
+          text: text,
+          parentClass: (el.parentElement?.className?.toString() || 'no-class').substring(0, 30),
+          grandParentClass: (el.parentElement?.parentElement?.className?.toString() || 'no-class').substring(0, 40),
+        });
+      }
+    }
+  });
+
+  // 如果上面没找到，再用更宽松的匹配
+  if (diagnosis.salaryElements.length === 0) {
+    allElements.forEach((el) => {
+      const text = el.textContent?.trim() || '';
+      if (text && /\d+[-·]\d+[Kk万]/.test(text) && el.children.length <= 3 && text.length < 20) {
+        if (!seenSalaryElements.has(el)) {
+          seenSalaryElements.add(el);
+          diagnosis.salaryElements.push({
+            class: (el.className?.toString() || 'no-class').substring(0, 30),
+            text: text.substring(0, 15),
+            parentClass: (el.parentElement?.className?.toString() || 'no-class').substring(0, 30),
+            grandParentClass: (el.parentElement?.parentElement?.className?.toString() || 'no-class').substring(0, 40),
+          });
+        }
+      }
+    });
+  }
+
+  diagnosis.salaryElements = diagnosis.salaryElements.slice(0, 10);
+
+  // 测试3：分析职位卡片结构（通过 job-card-box）
+  const jobCards = document.querySelectorAll('.job-card-box, [class*="job-card"]');
+  jobCards.forEach((card) => {
+    const cardText = card.textContent || '';
+    const cardClass = card.className?.toString() || '';
+
+    // 深度分析卡片内的每个子元素，查找薪资位置
+    const childElements = card.querySelectorAll('*');
+    const salaryElementsInCard = [];
+    const allChildClasses = [];
+
+    childElements.forEach((child) => {
+      const childText = child.textContent?.trim() || '';
+      const childClass = child.className?.toString() || '';
+
+      // 收集所有子元素的class
+      if (childClass && allChildClasses.length < 20) {
+        allChildClasses.push(childClass.substring(0, 40));
+      }
+
+      // 查找包含薪资格式的子元素（更宽松匹配）
+      if (childText && /\d+[-·~]\d+[Kk万]/.test(childText) && childText.length < 20 && child.children.length <= 2) {
+        salaryElementsInCard.push({
+          class: childClass.substring(0, 30) || 'no-class',
+          text: childText.substring(0, 15),
+          tag: child.tagName,
+        });
+      }
+    });
+
+    // NEW: 检查兄弟元素中是否有薪资
+    const siblingElements = card.parentElement?.children || [];
+    const siblingSalaries = [];
+    for (const sibling of siblingElements) {
+      if (sibling === card) continue;
+      const siblingText = sibling.textContent?.trim() || '';
+      if (/\d+[-·~]\d+[Kk万]/.test(siblingText) && siblingText.length < 20) {
+        siblingSalaries.push({
+          class: (sibling.className?.toString() || 'no-class').substring(0, 30),
+          text: siblingText.substring(0, 15),
+          tag: sibling.tagName,
+        });
+      }
+    }
+
+    if (diagnosis.possibleJobCards.length < 5) {
+      diagnosis.possibleJobCards.push({
+        elementTag: card.tagName,
+        class: cardClass.substring(0, 50),
+        innerTextPreview: cardText.substring(0, 100).replace(/\s+/g, ' ').trim(),
+        hasSalary: salaryElementsInCard.length > 0,
+        childCount: card.children.length,
+        // 添加子元素class列表和薪资元素
+        childClasses: allChildClasses.slice(0, 15),
+        salaryElements: salaryElementsInCard,
+        // NEW: 添加兄弟元素薪资信息
+        siblingSalaries: siblingSalaries,
+      });
+    }
+  });
+
+  // NEW: 测试3.5：检查 job-info 或 salary 相关的独立元素
+  const salaryRelatedElements = document.querySelectorAll('[class*="salary"], [class*="info"], [class*="price"], [class*="money"]');
+  diagnosis.salaryRelatedElements = [];
+  salaryRelatedElements.forEach((el, i) => {
+    if (i < 10) {
+      diagnosis.salaryRelatedElements.push({
+        class: (el.className?.toString() || '').substring(0, 50),
+        text: (el.textContent?.trim() || '').substring(0, 30),
+        tag: el.tagName,
+        parentClass: (el.parentElement?.className?.toString() || '').substring(0, 30),
+      });
+    }
+  });
+
+  // NEW: 测试3.6：深度分析 job-salary 元素
+  const jobSalaryElements = document.querySelectorAll('.job-salary');
+  diagnosis.jobSalaryDeepAnalysis = [];
+  jobSalaryElements.forEach((el, i) => {
+    if (i < 5) {
+      const computedStyle = window.getComputedStyle(el);
+      // 检查伪元素 ::before 和 ::after
+      const beforeStyle = window.getComputedStyle(el, '::before');
+      const afterStyle = window.getComputedStyle(el, '::after');
+
+      diagnosis.jobSalaryDeepAnalysis.push({
+        class: (el.className?.toString() || '').substring(0, 30),
+        innerHTML: (el.innerHTML || '').substring(0, 50),
+        textContent: (el.textContent?.trim() || '').substring(0, 30),
+        innerText: (el.innerText || '').substring(0, 30),
+        hasChildren: el.children.length > 0,
+        childrenCount: el.children.length,
+        display: computedStyle.display,
+        visibility: computedStyle.visibility,
+        opacity: computedStyle.opacity,
+        fontSize: computedStyle.fontSize,
+        color: computedStyle.color,
+        position: computedStyle.position,
+        // 检查 data 属性
+        dataset: Object.keys(el.dataset || {}).length > 0 ? JSON.stringify(el.dataset).substring(0, 100) : '',
+        // 检查 title 属性
+        title: el.getAttribute('title') || '',
+        // 检查 aria-label
+        ariaLabel: el.getAttribute('aria-label') || '',
+        // NEW: 检查伪元素
+        beforeContent: beforeStyle.content || '',
+        beforeDisplay: beforeStyle.display || '',
+        afterContent: afterStyle.content || '',
+        afterDisplay: afterStyle.display || '',
+        // 检查 Shadow DOM
+        hasShadowRoot: el.shadowRoot !== null,
+        shadowContent: el.shadowRoot ? (el.shadowRoot.textContent?.trim() || '').substring(0, 50) : '',
+      });
+    }
+  });
+
+  // 测试3.7：检查整个页面 innerText 中所有薪资格式文本
+  diagnosis.allSalaryTextsInPage = [];
+  const fullPageText = document.body.innerText || '';
+  const salaryRegexGlobal = /\d+[-·~]\d+[Kk万]/g;
+  let salaryMatch;
+  while ((salaryMatch = salaryRegexGlobal.exec(fullPageText)) !== null) {
+    if (diagnosis.allSalaryTextsInPage.length < 20) {
+      diagnosis.allSalaryTextsInPage.push(salaryMatch[0]);
+    }
+  }
+
+  // 测试4：分析所有链接
   const allLinks = document.querySelectorAll('a');
   const linkHrefs = new Set<string>();
   allLinks.forEach((link) => {
@@ -561,7 +819,7 @@ function runDomDiagnosis() {
 
     const text = link.textContent?.trim() || '';
     const isJobDetail = href.includes('job_detail');
-    const hasJobKeyword = /工程师|开发|经理|专员|设计|产品|运营|测试|主管|销售|普工|物流/.test(text);
+    const hasJobKeyword = /工程师|开发|经理|专员|设计|产品|运营|测试|主管|销售|普工|物流|实习/.test(text);
     const isJobRelated = isJobDetail || hasJobKeyword;
 
     if (diagnosis.allLinksAnalysis.length < 25) {
@@ -573,33 +831,11 @@ function runDomDiagnosis() {
     }
   });
 
-  // 测试3：通过职位链接找父容器（职位卡片）
-  jobLinks.forEach((link) => {
-    let parent = link.parentElement;
-    for (let i = 0; i < 6 && parent; i++) {
-      const parentText = parent.textContent || '';
-      const hasSalary = /\d+[-·]\d+K/.test(parentText);
-      if (hasSalary && parentText.length > 30 && parentText.length < 400) {
-        if (diagnosis.possibleJobCards.length < 5) {
-          diagnosis.possibleJobCards.push({
-            elementTag: parent.tagName,
-            class: (parent.className?.toString() || '').substring(0, 50),
-            innerTextPreview: parentText.substring(0, 100).replace(/\s+/g, ' ').trim(),
-            hasSalary,
-            childCount: parent.children.length,
-          });
-        }
-        break;
-      }
-      parent = parent.parentElement;
-    }
-  });
-
-  // 测试4：检测class中包含"job"或"card"或"item"的元素
-  document.querySelectorAll('[class*="job"], [class*="card"], [class*="item"]').forEach((el) => {
+  // 测试5：检测class中包含"job"或"card"或"salary"的元素
+  document.querySelectorAll('[class*="job"], [class*="card"], [class*="salary"], [class*="price"], [class*="money"]').forEach((el) => {
     const text = el.textContent?.trim() || '';
-    if (text.length > 20 && text.length < 300 && /\d+K/.test(text)) {
-      if (diagnosis.jobKeywordElements.length < 10) {
+    if (text.length > 10 && text.length < 200) {
+      if (diagnosis.jobKeywordElements.length < 15) {
         diagnosis.jobKeywordElements.push({
           text: text.substring(0, 80).replace(/\s+/g, ' ').trim(),
           class: (el.className?.toString() || '').substring(0, 50),
@@ -608,10 +844,6 @@ function runDomDiagnosis() {
       }
     }
   });
-
-  // 限制数量
-  diagnosis.possibleJobCards = diagnosis.possibleJobCards.slice(0, 5);
-  diagnosis.jobKeywordElements = diagnosis.jobKeywordElements.slice(0, 10);
 
   return diagnosis;
 }
