@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { JobInfo, UserConfig } from '../utils/types';
-import { getUserConfig } from '../utils/storage';
+import { JobInfo, UserConfig, DEFAULT_CONFIG } from '../utils/types';
+import { getUserConfig, saveUserConfig } from '../utils/storage';
 
 interface JobListPanelProps {
   onJobSelect?: (jobs: JobInfo[]) => void;
@@ -156,6 +156,14 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
     chrome.tabs.create({ url });
   };
 
+  // 重置筛选配置
+  const resetFilters = async () => {
+    const defaultConfig = { ...DEFAULT_CONFIG };
+    await saveUserConfig(defaultConfig);
+    setConfig(defaultConfig);
+    setFilteredJobs(applyFilters(jobs, defaultConfig));
+  };
+
   return (
     <div className="space-y-3">
       {/* 说明 */}
@@ -198,10 +206,35 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
             </span>
           </div>
           {jobs.length !== filteredJobs.length && (
-            <p className="text-xs text-orange-600 mt-1">
-              已过滤 {jobs.length - filteredJobs.length} 个不符合条件的职位
-            </p>
+            <div className="mt-2 flex justify-between items-center">
+              <p className="text-xs text-orange-600">
+                已过滤 {jobs.length - filteredJobs.length} 个不符合条件的职位
+              </p>
+              <button
+                onClick={resetFilters}
+                className="text-xs text-blue-600 hover:text-blue-800 underline"
+              >
+                重置筛选
+              </button>
+            </div>
           )}
+        </section>
+      )}
+
+      {/* 无职位提示 */}
+      {jobs.length > 0 && filteredJobs.length === 0 && (
+        <section className="bg-yellow-50 rounded-lg p-2 border border-yellow-200">
+          <div className="flex justify-between items-center">
+            <p className="text-xs text-yellow-700">
+              没有符合筛选条件的职位
+            </p>
+            <button
+              onClick={resetFilters}
+              className="text-xs text-blue-600 hover:text-blue-800 underline"
+            >
+              重置筛选
+            </button>
+          </div>
         </section>
       )}
 
@@ -282,15 +315,6 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
             ))}
           </div>
         </div>
-      )}
-
-      {/* 无职位提示 */}
-      {jobs.length > 0 && filteredJobs.length === 0 && (
-        <section className="bg-yellow-50 rounded-lg p-2 border border-yellow-200">
-          <p className="text-xs text-yellow-700">
-            没有符合筛选条件的职位，请调整筛选设置
-          </p>
-        </section>
       )}
     </div>
   );

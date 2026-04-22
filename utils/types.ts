@@ -93,14 +93,14 @@ export interface JobInfo {
 // 默认配置
 export const DEFAULT_CONFIG: UserConfig = {
   salaryMin: 0,
-  salaryMax: 100,
+  salaryMax: 0,  // 0 表示不限
   companyBlacklist: [],
   companySizeMin: 0,
-  companySizeMax: 10000,
+  companySizeMax: 0,  // 0 表示不限
   keywordsInclude: [],
   keywordsExclude: [],
   educationLevel: ['不限', '大专', '本科', '硕士', '博士'],
-  bossActiveHours: 24,
+  bossActiveHours: 0,  // 0 表示不限
   autoApplyEnabled: false,
   autoApplyInterval: 5,
 };
