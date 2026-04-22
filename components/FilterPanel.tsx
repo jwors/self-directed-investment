@@ -35,8 +35,8 @@ function FilterPanel() {
   const [config, setConfig] = useState<UserConfig>(DEFAULT_CONFIG);
   const [saved, setSaved] = useState(false);
   const [salaryMinStr, setSalaryMinStr] = useState('0');
-  const [salaryMaxStr, setSalaryMaxStr] = useState('100');
-  const [bossActiveStr, setBossActiveStr] = useState('24');
+  const [salaryMaxStr, setSalaryMaxStr] = useState('0');  // 改为0表示不限
+  const [bossActiveStr, setBossActiveStr] = useState('0');  // 改为0表示不限
 
   useEffect(() => {
     getUserConfig().then((cfg) => {
@@ -49,8 +49,8 @@ function FilterPanel() {
 
   const handleSave = async () => {
     const minVal = parseInt(salaryMinStr, 10) || 0;
-    const maxVal = parseInt(salaryMaxStr, 10) || 200;
-    const bossActiveVal = parseInt(bossActiveStr, 10) || 24;
+    const maxVal = parseInt(salaryMaxStr, 10) || 0;  // 0 表示不限
+    const bossActiveVal = parseInt(bossActiveStr, 10) || 0;  // 0 表示不限
     const newConfig = {
       ...config,
       salaryMin: minVal,

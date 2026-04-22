@@ -42,7 +42,11 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
 
       // 学历筛选
       if (userConfig.educationLevel.length > 0 && !userConfig.educationLevel.includes('不限')) {
-        const jobEducation = job.education || '';
+        const jobEducation = job.education?.trim() || '';
+        // 如果职位学历为空或学历不限，始终通过
+        if (!jobEducation || jobEducation.includes('学历不限')) {
+          return true;  // 继续检查其他筛选条件
+        }
         // 如果职位学历不在用户接受的学历列表中，排除
         const educationMatch = userConfig.educationLevel.some(
           edu => jobEducation.includes(edu)
@@ -172,6 +176,22 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
         <p className="text-xs text-gray-500">
           请先打开Boss职位列表页面，然后点击获取按钮
         </p>
+        {config && (
+          <div className="mt-2 text-xs text-gray-400 border-t pt-2">
+            <p>当前筛选配置：</p>
+            <div className="flex gap-2 mt-1">
+              <span className={config.salaryMax > 0 ? 'text-orange-600' : 'text-gray-500'}>
+                薪资: {config.salaryMax > 0 ? `${config.salaryMin}-${config.salaryMax}K` : '不限'}
+              </span>
+              <span className={config.bossActiveHours > 0 ? 'text-orange-600' : 'text-gray-500'}>
+                Boss活跃: {config.bossActiveHours > 0 ? `${config.bossActiveHours}小时内` : '不限'}
+              </span>
+              <span className={config.educationLevel.length < 5 ? 'text-orange-600' : 'text-gray-500'}>
+                学历: {config.educationLevel.length < 5 ? config.educationLevel.join('/') : '不限'}
+              </span>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* 获取按钮 */}
