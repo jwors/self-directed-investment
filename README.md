@@ -340,7 +340,8 @@ zhi-pin-helper/
 │   ├── FilterPanel.tsx     # 筛选配置面板（含薪资预设）
 │   ├── SettingsPanel.tsx   # 设置面板
 │   ├── AIConfigPanel.tsx   # AI配置面板
-│   └── DiagnosisPanel.tsx  # DOM诊断面板（替代F12调试）
+│   ├── DiagnosisPanel.tsx  # DOM诊断面板（替代F12调试）
+│   └── JobListPanel.tsx    # 职位列表面板（获取/筛选/勾选）
 ├── utils/
 │   ├── types.ts            # TypeScript类型定义
 │   └── storage.ts          # Chrome Storage封装
@@ -372,14 +373,15 @@ zhi-pin-helper/
 | Popup诊断功能 | ✅ 完成 | 无需F12即可诊断DOM结构 |
 | 职位数据提取验证 | ✅ 完成 | 成功提取17个职位的完整信息 |
 
-### Phase 2: 筛选与应用 (进行中)
+### Phase 2: 筛选与应用 (已完成)
 
 | 任务 | 状态 | 说明 |
 |------|------|------|
-| 获取职位按钮功能 | ⏳ 待开发 | Popup 点击获取当前页职位列表 |
-| 筛选规则应用 | ⏳ 待开发 | 将配置的筛选规则应用到职位数据 |
-| 职位列表展示 | ⏳ 待开发 | Popup 展示筛选后的职位列表 |
-| 职位勾选功能 | ⏳ 待开发 | 用户可勾选想要沟通的职位 |
+| 获取职位按钮功能 | ✅ 完成 | Popup 点击获取当前页职位列表 |
+| 筛选规则应用 | ✅ 完成 | 将配置的筛选规则应用到职位数据 |
+| 职位列表展示 | ✅ 完成 | Popup 展示筛选后的职位列表 |
+| 职位勾选功能 | ✅ 完成 | 用户可勾选想要沟通的职位 |
+| bossActiveHours 字段 | ✅ 完成 | Boss活跃时间转换为小时数 |
 
 ### Phase 3: AI功能集成 (待开发)
 
