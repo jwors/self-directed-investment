@@ -85,6 +85,7 @@ export interface JobInfo {
   bossName: string;
   bossTitle: string;
   bossActiveTime: string;
+  bossActiveHours: number;  // 转换后的活跃小时数
   jobDescription: string;
   url: string;
 }

@@ -387,6 +387,7 @@ function extractJobInfo(container: Element): JobInfo | null {
       bossName: bossInfo.bossName,
       bossTitle: bossInfo.bossTitle,
       bossActiveTime: bossInfo.activeTime,
+      bossActiveHours: parseBossActiveTime(bossInfo.activeTime),
       jobDescription: '',
       url: jobLinkInfo.url,
     };
