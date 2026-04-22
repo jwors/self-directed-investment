@@ -70,20 +70,30 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
         return false;
       }
 
-      // 关键词筛选（包含）
+      // 精准匹配关键词（区分大小写）
+      const jobText = `${job.title} ${job.jobDescription}`;
+
+      // 辅助函数：检查关键词是否精准匹配（独立出现）
+      const preciseMatch = (text: string, keyword: string): boolean => {
+        // 转义正则特殊字符
+        const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // 使用正则匹配：前后是单词边界或非字母数字字符
+        const regex = new RegExp(`(^|[^a-zA-Z0-9])${escapedKeyword}($|[^a-zA-Z0-9])`, 'u');
+        return regex.test(text);
+      };
+
+      // 关键词筛选（包含）- 必须包含其中一个关键词
       if (userConfig.keywordsInclude.length > 0) {
-        const jobText = `${job.title} ${job.jobDescription}`.toLowerCase();
         const hasIncludeKeyword = userConfig.keywordsInclude.some(
-          keyword => jobText.includes(keyword.toLowerCase())
+          keyword => preciseMatch(jobText, keyword)
         );
         if (!hasIncludeKeyword) return false;
       }
 
-      // 关键词筛选（排除）
+      // 关键词筛选（排除）- 包含任一排除关键词则过滤
       if (userConfig.keywordsExclude.length > 0) {
-        const jobText = `${job.title} ${job.jobDescription}`.toLowerCase();
         const hasExcludeKeyword = userConfig.keywordsExclude.some(
-          keyword => jobText.includes(keyword.toLowerCase())
+          keyword => preciseMatch(jobText, keyword)
         );
         if (hasExcludeKeyword) return false;
       }

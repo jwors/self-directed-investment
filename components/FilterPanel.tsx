@@ -218,36 +218,39 @@ function FilterPanel() {
 
       {/* 关键字筛选 */}
       <section className="bg-white rounded-lg p-3 shadow-sm">
-        <h3 className="font-medium text-gray-800 mb-2">📝 工作内容关键字</h3>
+        <h3 className="font-medium text-gray-800 mb-2">📝 技术栈关键字</h3>
         <div className="space-y-2">
           <div>
-            <label className="text-xs text-gray-500 mb-1">包含关键字（必须包含）</label>
-            <textarea
-              value={config.keywordsInclude.join('\n')}
+            <label className="text-xs text-gray-500 mb-1">包含关键字（必须包含其一）</label>
+            <input
+              type="text"
+              value={config.keywordsInclude.join('、')}
               onChange={(e) =>
                 updateConfig(
                   'keywordsInclude',
-                  e.target.value.split('\n').filter(Boolean)
+                  e.target.value.split('、').filter(Boolean)
                 )
               }
-              className="w-full border rounded px-2 py-1 text-sm h-16 resize-none"
-              placeholder="每行一个关键字"
+              className="w-full border rounded px-2 py-1 text-sm"
+              placeholder="多个关键字用 、 分隔，如：Java、React、Python"
             />
           </div>
           <div>
             <label className="text-xs text-gray-500 mb-1">排除关键字（包含则过滤）</label>
-            <textarea
-              value={config.keywordsExclude.join('\n')}
+            <input
+              type="text"
+              value={config.keywordsExclude.join('、')}
               onChange={(e) =>
                 updateConfig(
                   'keywordsExclude',
-                  e.target.value.split('\n').filter(Boolean)
+                  e.target.value.split('、').filter(Boolean)
                 )
               }
-              className="w-full border rounded px-2 py-1 text-sm h-16 resize-none"
-              placeholder="每行一个关键字"
+              className="w-full border rounded px-2 py-1 text-sm"
+              placeholder="多个关键字用 、 分隔，如：外包、外派"
             />
           </div>
+          <p className="text-xs text-gray-400">精准匹配，区分大小写（如 Java 不匹配 JavaScript）</p>
         </div>
       </section>
 
