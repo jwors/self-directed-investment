@@ -5,6 +5,8 @@ import { getAIConfig, saveAIConfig } from '../utils/storage';
 function AIConfigPanel() {
   const [config, setConfig] = useState<AIConfig>(DEFAULT_AI_CONFIG);
   const [saved, setSaved] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     getAIConfig().then(setConfig);
@@ -24,6 +26,48 @@ function AIConfigPanel() {
       baseUrl: providerConfig.baseUrl,
       model: providerConfig.models[0],
     });
+    setTestResult(null); // 清除之前的测试结果
+  };
+
+  // 测试AI连接
+  const testConnection = async () => {
+    if (!config.apiKey) return;
+
+    setTesting(true);
+    setTestResult(null);
+
+    try {
+      const response = await fetch(`${config.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: config.model,
+          messages: [{ role: 'user', content: '你好，请回复"测试成功"' }],
+          max_tokens: 20,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.error?.message || `HTTP错误: ${response.status}`;
+        setTestResult({ success: false, message: errorMsg });
+        return;
+      }
+
+      const data = await response.json();
+      if (data.choices && data.choices[0]?.message?.content) {
+        setTestResult({ success: true, message: '连接成功！AI已响应。' });
+      } else {
+        setTestResult({ success: false, message: '响应格式异常' });
+      }
+    } catch (e) {
+      setTestResult({ success: false, message: `连接失败: ${String(e)}` });
+    } finally {
+      setTesting(false);
+    }
   };
 
   const currentProvider = AI_PROVIDER_CONFIG[config.provider];
@@ -103,15 +147,27 @@ function AIConfigPanel() {
       {/* 测试连接 */}
       <section className="bg-white rounded-lg p-3 shadow-sm">
         <button
-          disabled={!config.apiKey}
+          onClick={testConnection}
+          disabled={!config.apiKey || testing}
           className={`w-full py-2 rounded text-sm font-medium ${
-            config.apiKey
-              ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+            testing
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : config.apiKey
+                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                : 'bg-gray-50 text-gray-400 cursor-not-allowed'
           }`}
         >
-          测试连接
+          {testing ? '测试中...' : '测试连接'}
         </button>
+
+        {/* 测试结果 */}
+        {testResult && (
+          <div className={`mt-2 p-2 rounded text-xs ${
+            testResult.success ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+          }`}>
+            {testResult.success ? '✓ ' : '✗ '}{testResult.message}
+          </div>
+        )}
       </section>
 
       {/* 保存按钮 */}
