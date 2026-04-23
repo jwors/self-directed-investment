@@ -167,12 +167,19 @@ function FilterPanel() {
                 checked={config.educationLevel.includes(level)}
                 onChange={(e) => {
                   if (e.target.checked) {
-                    updateConfig('educationLevel', [...config.educationLevel, level]);
+                    // 如果选中"不限"，则只保留"不限"
+                    if (level === '不限') {
+                      updateConfig('educationLevel', ['不限']);
+                    } else {
+                      // 如果选中其他选项，则移除"不限"
+                      const newLevels = config.educationLevel.filter((l) => l !== '不限');
+                      updateConfig('educationLevel', [...newLevels, level]);
+                    }
                   } else {
-                    updateConfig(
-                      'educationLevel',
-                      config.educationLevel.filter((l) => l !== level)
-                    );
+                    // 取消选中
+                    const newLevels = config.educationLevel.filter((l) => l !== level);
+                    // 如果取消后为空，则默认选中"不限"
+                    updateConfig('educationLevel', newLevels.length > 0 ? newLevels : ['不限']);
                   }
                 }}
                 className="hidden"
@@ -181,6 +188,7 @@ function FilterPanel() {
             </label>
           ))}
         </div>
+        <p className="text-xs text-gray-400 mt-1">选中「不限」表示接受所有学历</p>
       </section>
 
       {/* Boss活跃度 */}

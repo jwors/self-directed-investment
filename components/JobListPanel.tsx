@@ -40,18 +40,19 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
         if (isBlacklisted) return false;
       }
 
-      // 学历筛选
-      if (userConfig.educationLevel.length > 0 && !userConfig.educationLevel.includes('不限')) {
+      // 学历筛选 - "不限"表示接受所有学历
+      if (!userConfig.educationLevel.includes('不限')) {
         const jobEducation = job.education?.trim() || '';
         // 如果职位学历为空或学历不限，始终通过
         if (!jobEducation || jobEducation.includes('学历不限')) {
-          return true;  // 继续检查其他筛选条件
+          // 继续检查其他筛选条件
+        } else {
+          // 如果职位学历不在用户接受的学历列表中，排除
+          const educationMatch = userConfig.educationLevel.some(
+            edu => jobEducation.includes(edu)
+          );
+          if (!educationMatch) return false;
         }
-        // 如果职位学历不在用户接受的学历列表中，排除
-        const educationMatch = userConfig.educationLevel.some(
-          edu => jobEducation.includes(edu)
-        );
-        if (!educationMatch) return false;
       }
 
       // Boss活跃时间筛选
