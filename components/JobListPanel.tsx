@@ -2,6 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { JobInfo, UserConfig, DEFAULT_CONFIG } from '../utils/types';
 import { getUserConfig, saveUserConfig } from '../utils/storage';
 
+interface GreetingResult {
+  jobId: string;
+  greeting: string;
+  loading: boolean;
+}
+
 interface JobListPanelProps {
   onJobSelect?: (jobs: JobInfo[]) => void;
 }
@@ -13,6 +19,7 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [config, setConfig] = useState<UserConfig | null>(null);
+  const [greetings, setGreetings] = useState<Map<string, GreetingResult>>(new Map());
 
   // 加载用户配置
   useEffect(() => {
@@ -43,11 +50,9 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
       // 学历筛选 - "不限"表示接受所有学历
       if (!userConfig.educationLevel.includes('不限')) {
         const jobEducation = job.education?.trim() || '';
-        // 如果职位学历为空或学历不限，始终通过
         if (!jobEducation || jobEducation.includes('学历不限')) {
           // 继续检查其他筛选条件
         } else {
-          // 如果职位学历不在用户接受的学历列表中，排除
           const educationMatch = userConfig.educationLevel.some(
             edu => jobEducation.includes(edu)
           );
@@ -71,19 +76,16 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
         return false;
       }
 
-      // 精准匹配关键词（区分大小写）
+      // 精准匹配关键词
       const jobText = `${job.title} ${job.jobDescription}`;
 
-      // 辅助函数：检查关键词是否精准匹配（独立出现）
       const preciseMatch = (text: string, keyword: string): boolean => {
-        // 转义正则特殊字符
         const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // 使用正则匹配：前后是单词边界或非字母数字字符
         const regex = new RegExp(`(^|[^a-zA-Z0-9])${escapedKeyword}($|[^a-zA-Z0-9])`, 'u');
         return regex.test(text);
       };
 
-      // 关键词筛选（包含）- 必须包含其中一个关键词
+      // 关键词筛选（包含）
       if (userConfig.keywordsInclude.length > 0) {
         const hasIncludeKeyword = userConfig.keywordsInclude.some(
           keyword => preciseMatch(jobText, keyword)
@@ -91,7 +93,7 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
         if (!hasIncludeKeyword) return false;
       }
 
-      // 关键词筛选（排除）- 包含任一排除关键词则过滤
+      // 关键词筛选（排除）
       if (userConfig.keywordsExclude.length > 0) {
         const hasExcludeKeyword = userConfig.keywordsExclude.some(
           keyword => preciseMatch(jobText, keyword)
@@ -179,6 +181,56 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
     setFilteredJobs(applyFilters(jobs, defaultConfig));
   };
 
+  // 生成问候语
+  const generateGreetings = async () => {
+    if (selectedJobs.size === 0) return;
+
+    const selectedJobList = filteredJobs.filter(job => selectedJobs.has(job.id));
+
+    const newGreetings = new Map(greetings);
+    selectedJobList.forEach(job => {
+      newGreetings.set(job.id, { jobId: job.id, greeting: '', loading: true });
+    });
+    setGreetings(newGreetings);
+
+    for (const job of selectedJobList) {
+      try {
+        const response = await new Promise<string>((resolve) => {
+          chrome.runtime.sendMessage(
+            { type: 'GENERATE_GREETING', data: job },
+            (greeting) => resolve(greeting)
+          );
+        });
+
+        setGreetings(prev => {
+          const updated = new Map(prev);
+          updated.set(job.id, { jobId: job.id, greeting: response, loading: false });
+          return updated;
+        });
+      } catch (e) {
+        setGreetings(prev => {
+          const updated = new Map(prev);
+          updated.set(job.id, {
+            jobId: job.id,
+            greeting: '生成失败，请检查AI配置',
+            loading: false
+          });
+          return updated;
+        });
+      }
+    }
+  };
+
+  // 复制问候语
+  const copyGreeting = (greeting: string) => {
+    navigator.clipboard.writeText(greeting);
+  };
+
+  // 清除问候语
+  const clearGreetings = () => {
+    setGreetings(new Map());
+  };
+
   return (
     <div className="space-y-3">
       {/* 说明 */}
@@ -210,9 +262,7 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
         onClick={fetchJobs}
         disabled={loading}
         className={`w-full py-2 rounded text-white font-medium text-sm ${
-          loading
-            ? 'bg-gray-400 cursor-not-allowed'
-            : 'bg-blue-600 hover:bg-blue-700'
+          loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
         }`}
       >
         {loading ? '获取中...' : '获取当前页面职位'}
@@ -256,9 +306,7 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
       {jobs.length > 0 && filteredJobs.length === 0 && (
         <section className="bg-yellow-50 rounded-lg p-2 border border-yellow-200">
           <div className="flex justify-between items-center">
-            <p className="text-xs text-yellow-700">
-              没有符合筛选条件的职位
-            </p>
+            <p className="text-xs text-yellow-700">没有符合筛选条件的职位</p>
             <button
               onClick={resetFilters}
               className="text-xs text-blue-600 hover:text-blue-800 underline"
@@ -273,77 +321,113 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
       {filteredJobs.length > 0 && (
         <div className="space-y-2">
           {/* 操作栏 */}
-          <div className="flex justify-between items-center bg-white rounded-lg p-2 shadow-sm">
-            <button
-              onClick={toggleSelectAll}
-              className="text-xs text-blue-600 hover:text-blue-800"
-            >
-              {selectedJobs.size === filteredJobs.length ? '取消全选' : '全选'}
-            </button>
-            <span className="text-xs text-gray-500">
-              已选择 {selectedJobs.size} 个
-            </span>
+          <div className="bg-white rounded-lg p-2 shadow-sm space-y-2">
+            <div className="flex justify-between items-center">
+              <button
+                onClick={toggleSelectAll}
+                className="text-xs text-blue-600 hover:text-blue-800"
+              >
+                {selectedJobs.size === filteredJobs.length ? '取消全选' : '全选'}
+              </button>
+              <span className="text-xs text-gray-500">已选择 {selectedJobs.size} 个</span>
+            </div>
+
+            {/* AI 操作按钮 */}
+            {selectedJobs.size > 0 && (
+              <div className="flex gap-2">
+                <button
+                  onClick={generateGreetings}
+                  className="flex-1 py-1.5 rounded text-xs text-white bg-green-600 hover:bg-green-700 font-medium"
+                >
+                  ✨ 生成问候语
+                </button>
+                {greetings.size > 0 && (
+                  <button
+                    onClick={clearGreetings}
+                    className="px-2 py-1.5 rounded text-xs text-gray-600 bg-gray-100 hover:bg-gray-200"
+                  >
+                    清除
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 职位卡片列表 */}
           <div className="space-y-2 max-h-[300px] overflow-y-auto">
-            {filteredJobs.map((job) => (
-              <div
-                key={job.id}
-                className={`bg-white rounded-lg p-2 shadow-sm cursor-pointer transition-colors ${
-                  selectedJobs.has(job.id) ? 'border-2 border-blue-500 bg-blue-50' : 'hover:bg-gray-50'
-                }`}
-                onClick={() => toggleJobSelection(job.id)}
-              >
-                {/* 职位名和薪资 */}
-                <div className="flex justify-between items-start mb-1">
-                  <p className="font-medium text-gray-800 text-sm truncate flex-1">
-                    {job.title}
-                  </p>
-                  <p className="text-red-600 font-bold text-sm ml-2">
-                    {job.salary}
-                  </p>
-                </div>
-
-                {/* 公司和地区 */}
-                <div className="text-xs text-gray-600 mb-1">
-                  <span className="font-medium">{job.company}</span>
-                  {job.location && <span className="ml-2 text-gray-400">{job.location}</span>}
-                </div>
-
-                {/* 标签 */}
-                <div className="flex gap-1 text-xs text-gray-500">
-                  {job.experience && (
-                    <span className="bg-gray-100 px-1 rounded">{job.experience}</span>
-                  )}
-                  {job.education && (
-                    <span className="bg-gray-100 px-1 rounded">{job.education}</span>
-                  )}
-                </div>
-
-                {/* Boss信息 */}
-                {job.bossName && (
-                  <div className="text-xs text-gray-500 mt-1">
-                    <span>{job.bossName}</span>
-                    {job.bossTitle && <span className="ml-1 text-gray-400">| {job.bossTitle}</span>}
-                    {job.bossActiveTime && (
-                      <span className="ml-2 text-green-600">{job.bossActiveTime}</span>
-                    )}
-                  </div>
-                )}
-
-                {/* 打开详情按钮 */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openJobDetail(job.url);
-                  }}
-                  className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline"
+            {filteredJobs.map((job) => {
+              const greetingResult = greetings.get(job.id);
+              return (
+                <div
+                  key={job.id}
+                  className={`bg-white rounded-lg p-2 shadow-sm cursor-pointer transition-colors ${
+                    selectedJobs.has(job.id) ? 'border-2 border-blue-500 bg-blue-50' : 'hover:bg-gray-50'
+                  }`}
+                  onClick={() => toggleJobSelection(job.id)}
                 >
-                  打开职位详情
-                </button>
-              </div>
-            ))}
+                  {/* 职位名和薪资 */}
+                  <div className="flex justify-between items-start mb-1">
+                    <p className="font-medium text-gray-800 text-sm truncate flex-1">{job.title}</p>
+                    <p className="text-red-600 font-bold text-sm ml-2">{job.salary}</p>
+                  </div>
+
+                  {/* 公司和地区 */}
+                  <div className="text-xs text-gray-600 mb-1">
+                    <span className="font-medium">{job.company}</span>
+                    {job.location && <span className="ml-2 text-gray-400">{job.location}</span>}
+                  </div>
+
+                  {/* 标签 */}
+                  <div className="flex gap-1 text-xs text-gray-500">
+                    {job.experience && <span className="bg-gray-100 px-1 rounded">{job.experience}</span>}
+                    {job.education && <span className="bg-gray-100 px-1 rounded">{job.education}</span>}
+                  </div>
+
+                  {/* Boss信息 */}
+                  {job.bossName && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      <span>{job.bossName}</span>
+                      {job.bossTitle && <span className="ml-1 text-gray-400">| {job.bossTitle}</span>}
+                      {job.bossActiveTime && <span className="ml-2 text-green-600">{job.bossActiveTime}</span>}
+                    </div>
+                  )}
+
+                  {/* 问候语显示 */}
+                  {greetingResult && (
+                    <div className="mt-2 p-2 bg-green-50 rounded border border-green-200">
+                      {greetingResult.loading ? (
+                        <p className="text-xs text-gray-500">正在生成问候语...</p>
+                      ) : (
+                        <div>
+                          <p className="text-xs text-green-700 mb-1">💬 AI问候语：</p>
+                          <p className="text-xs text-gray-700 mb-2">{greetingResult.greeting}</p>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              copyGreeting(greetingResult.greeting);
+                            }}
+                            className="text-xs text-blue-600 hover:text-blue-800"
+                          >
+                            📋 复制
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 打开详情按钮 */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openJobDetail(job.url);
+                    }}
+                    className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline"
+                  >
+                    打开职位详情
+                  </button>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
