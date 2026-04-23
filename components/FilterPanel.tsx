@@ -37,6 +37,9 @@ function FilterPanel() {
   const [salaryMinStr, setSalaryMinStr] = useState('0');
   const [salaryMaxStr, setSalaryMaxStr] = useState('0');  // 改为0表示不限
   const [bossActiveStr, setBossActiveStr] = useState('0');  // 改为0表示不限
+  // 临时输入状态，避免顿号被吃掉
+  const [keywordsIncludeStr, setKeywordsIncludeStr] = useState('');
+  const [keywordsExcludeStr, setKeywordsExcludeStr] = useState('');
 
   useEffect(() => {
     getUserConfig().then((cfg) => {
@@ -44,6 +47,9 @@ function FilterPanel() {
       setSalaryMinStr(String(cfg.salaryMin));
       setSalaryMaxStr(String(cfg.salaryMax));
       setBossActiveStr(String(cfg.bossActiveHours));
+      // 初始化临时输入
+      setKeywordsIncludeStr(cfg.keywordsInclude.join('、'));
+      setKeywordsExcludeStr(cfg.keywordsExclude.join('、'));
     });
   }, []);
 
@@ -51,11 +57,17 @@ function FilterPanel() {
     const minVal = parseInt(salaryMinStr, 10) || 0;
     const maxVal = parseInt(salaryMaxStr, 10) || 0;  // 0 表示不限
     const bossActiveVal = parseInt(bossActiveStr, 10) || 0;  // 0 表示不限
+    // 只在保存时处理分隔
+    const keywordsInclude = keywordsIncludeStr.split('、').filter(Boolean);
+    const keywordsExclude = keywordsExcludeStr.split('、').filter(Boolean);
+
     const newConfig = {
       ...config,
       salaryMin: minVal,
       salaryMax: maxVal,
       bossActiveHours: bossActiveVal,
+      keywordsInclude,
+      keywordsExclude,
     };
     setConfig(newConfig);
     await saveUserConfig(newConfig);
@@ -232,13 +244,8 @@ function FilterPanel() {
             <label className="text-xs text-gray-500 mb-1">包含关键字（必须包含其一）</label>
             <input
               type="text"
-              value={config.keywordsInclude.join('、')}
-              onChange={(e) =>
-                updateConfig(
-                  'keywordsInclude',
-                  e.target.value.split('、').filter(Boolean)
-                )
-              }
+              value={keywordsIncludeStr}
+              onChange={(e) => setKeywordsIncludeStr(e.target.value)}
               className="w-full border rounded px-2 py-1 text-sm"
               placeholder="多个关键字用 、 分隔，如：Java、React、Python"
             />
@@ -247,13 +254,8 @@ function FilterPanel() {
             <label className="text-xs text-gray-500 mb-1">排除关键字（包含则过滤）</label>
             <input
               type="text"
-              value={config.keywordsExclude.join('、')}
-              onChange={(e) =>
-                updateConfig(
-                  'keywordsExclude',
-                  e.target.value.split('、').filter(Boolean)
-                )
-              }
+              value={keywordsExcludeStr}
+              onChange={(e) => setKeywordsExcludeStr(e.target.value)}
               className="w-full border rounded px-2 py-1 text-sm"
               placeholder="多个关键字用 、 分隔，如：外包、外派"
             />

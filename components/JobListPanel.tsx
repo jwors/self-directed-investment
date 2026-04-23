@@ -419,11 +419,12 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      openJobDetail(job.url);
+                      // 在同一窗口打开，保持登录态
+                      chrome.tabs.update({ url: job.url });
                     }}
                     className="mt-2 text-xs text-blue-600 hover:text-blue-800 underline"
                   >
-                    打开职位详情
+                    查看职位详情
                   </button>
                 </div>
               );
