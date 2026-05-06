@@ -7,7 +7,7 @@ export default defineConfig({
     name: '智能求职助手',
     description: '自动化求职投递助手，支持Boss直聘智能筛选和投递',
     version: '1.0.0',
-    permissions: ['storage', 'activeTab'],
+    permissions: ['storage', 'activeTab', 'tabs'],
     host_permissions: ['https://www.zhipin.com/*', 'https://zhipin.com/*'],
   },
 });

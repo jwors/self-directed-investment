@@ -553,21 +553,29 @@ function injectAntiDebugScript() {
 function initContentScript() {
   chrome.runtime.sendMessage({ type: 'LOG', data: 'Content Script 已加载（动态特征匹配模式）' });
 
-  observeJobList((jobs) => {
-    chrome.runtime.sendMessage({
-      type: 'LOG',
-      data: `检测到职位更新: ${jobs.length} 个职位`
-    });
-    if (jobs.length > 0) {
+  // 判断是否是职位详情页
+  const isJobDetailPage = /job_detail|web\/geek\/job/.test(window.location.href);
+
+  if (isJobDetailPage) {
+    chrome.runtime.sendMessage({ type: 'LOG', data: '职位详情页模式' });
+  } else {
+    // 职位列表页 - 监听职位列表
+    observeJobList((jobs) => {
       chrome.runtime.sendMessage({
         type: 'LOG',
-        data: `职位示例: ${jobs[0].title} | ${jobs[0].salary} | ${jobs[0].company}`
+        data: `检测到职位更新: ${jobs.length} 个职位`
       });
-    }
-    sendJobsToBackground(jobs);
-  });
+      if (jobs.length > 0) {
+        chrome.runtime.sendMessage({
+          type: 'LOG',
+          data: `职位示例: ${jobs[0].title} | ${jobs[0].salary} | ${jobs[0].company}`
+        });
+      }
+      sendJobsToBackground(jobs);
+    });
+  }
 
-  // 监听来自 Popup 的消息
+  // 监听来自 Popup/Background 的消息
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'GET_JOBS') {
       const jobs = getAllJobsOnPage();
@@ -578,8 +586,177 @@ function initContentScript() {
       const result = runDomDiagnosis();
       sendResponse(result);
     }
+    else if (message.type === 'SEND_GREETING') {
+      // 职位详情页发送问候语
+      chrome.runtime.sendMessage({ type: 'LOG', data: `收到发送问候语指令: ${message.greeting.substring(0, 30)}...` });
+      sendGreeting(message.greeting).then(sendResponse);
+      return true;
+    }
+    else if (message.type === 'TEST_DETAIL_DOM') {
+      // 详情页DOM诊断
+      const diagnosis = {
+        chatButton: findChatButton()?.outerHTML?.substring(0, 100) || null,
+        inputField: findInputField()?.outerHTML?.substring(0, 100) || null,
+        sendButton: findSendButton()?.outerHTML?.substring(0, 100) || null,
+        allButtons: Array.from(document.querySelectorAll('button')).map(b => b.textContent?.trim() || '').slice(0, 10),
+        allTextareas: Array.from(document.querySelectorAll('textarea')).map(t => ({
+          placeholder: t.placeholder,
+          className: t.className,
+        })),
+      };
+      sendResponse(diagnosis);
+      return true;
+    }
     return true;
   });
+}
+
+// ========== 职位详情页功能 ==========
+
+// 查找"立即沟通"按钮
+function findChatButton(): HTMLElement | null {
+  const selectors = [
+    '.start-chat-btn',
+    '[class*="start-chat"]',
+    '[class*="chat-btn"]',
+    '[class*="communicate"]',
+    '[class*="goutong"]',
+  ];
+
+  for (const selector of selectors) {
+    const btn = document.querySelector<HTMLElement>(selector);
+    if (btn) return btn;
+  }
+
+  const buttons = document.querySelectorAll<HTMLElement>('button, [role="button"], a.btn');
+  for (const btn of buttons) {
+    const text = btn.textContent?.trim() || '';
+    if (text.includes('立即沟通') || text.includes('我要沟通') || text.includes('打招呼')) {
+      return btn;
+    }
+  }
+
+  return null;
+}
+
+// 查找输入框
+function findInputField(): HTMLTextAreaElement | HTMLInputElement | null {
+  const selectors = [
+    'textarea[class*="chat"]',
+    'textarea[class*="input"]',
+    'textarea[class*="message"]',
+    'textarea[placeholder*="打招呼"]',
+    'textarea[placeholder*="回复"]',
+    'textarea[placeholder*="输入"]',
+  ];
+
+  for (const selector of selectors) {
+    const input = document.querySelector<HTMLTextAreaElement | HTMLInputElement>(selector);
+    if (input) return input;
+  }
+
+  const textareas = document.querySelectorAll<HTMLTextAreaElement>('textarea');
+  for (const textarea of textareas) {
+    const placeholder = textarea.placeholder || '';
+    if (placeholder.includes('打招呼') || placeholder.includes('回复') || placeholder.includes('输入')) {
+      return textarea;
+    }
+  }
+
+  return null;
+}
+
+// 查找发送按钮
+function findSendButton(): HTMLElement | null {
+  const selectors = [
+    '[class*="send-btn"]',
+    '[class*="send"]',
+    'button[class*="submit"]',
+  ];
+
+  for (const selector of selectors) {
+    const btn = document.querySelector<HTMLElement>(selector);
+    if (btn) return btn;
+  }
+
+  const buttons = document.querySelectorAll<HTMLElement>('button, [role="button"]');
+  for (const btn of buttons) {
+    const text = btn.textContent?.trim() || '';
+    if (text.includes('发送') || text.includes('提交')) {
+      return btn;
+    }
+  }
+
+  return null;
+}
+
+// 等待元素
+function waitForElement<T extends HTMLElement>(finder: () => T | null, timeout: number = 5000): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now();
+    const check = () => {
+      const element = finder();
+      if (element) {
+        resolve(element);
+        return;
+      }
+      if (Date.now() - startTime > timeout) {
+        reject(new Error('等待元素超时'));
+        return;
+      }
+      setTimeout(check, 100);
+    };
+    check();
+  });
+}
+
+// 随机延迟
+function randomDelay(min: number, max: number): Promise<void> {
+  const delay = min + Math.random() * (max - min);
+  return new Promise(resolve => setTimeout(resolve, delay));
+}
+
+// 发送问候语
+async function sendGreeting(greeting: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const chatButton = await waitForElement(findChatButton, 3000);
+    if (!chatButton) {
+      return { success: false, message: '未找到沟通按钮' };
+    }
+
+    chatButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    await randomDelay(300, 800);
+    chatButton.click();
+    chrome.runtime.sendMessage({ type: 'LOG', data: '已点击沟通按钮' });
+
+    await randomDelay(500, 1500);
+    const inputField = await waitForElement(findInputField, 3000);
+    if (!inputField) {
+      return { success: false, message: '未找到输入框' };
+    }
+
+    inputField.focus();
+    await randomDelay(100, 300);
+    inputField.value = greeting;
+    inputField.dispatchEvent(new Event('input', { bubbles: true }));
+    inputField.dispatchEvent(new Event('change', { bubbles: true }));
+    chrome.runtime.sendMessage({ type: 'LOG', data: `已输入问候语: ${greeting.substring(0, 30)}...` });
+
+    await randomDelay(300, 800);
+    const sendButton = await waitForElement(findSendButton, 2000);
+    if (!sendButton) {
+      return { success: false, message: '未找到发送按钮' };
+    }
+
+    sendButton.click();
+    chrome.runtime.sendMessage({ type: 'LOG', data: '已点击发送按钮' });
+    await randomDelay(500, 1000);
+
+    return { success: true, message: '问候语已发送' };
+  } catch (error) {
+    chrome.runtime.sendMessage({ type: 'LOG_ERROR', data: `发送问候语失败: ${String(error)}` });
+    return { success: false, message: String(error) };
+  }
 }
 
 // DOM诊断测试函数
