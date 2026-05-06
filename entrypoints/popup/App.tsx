@@ -4,14 +4,16 @@ import FilterPanel from '../../components/FilterPanel';
 import AIConfigPanel from '../../components/AIConfigPanel';
 import DiagnosisPanel from '../../components/DiagnosisPanel';
 import JobListPanel from '../../components/JobListPanel';
+import ApplyHistoryPanel from '../../components/ApplyHistoryPanel';
 
-type TabType = 'jobs' | 'diagnosis' | 'filter' | 'settings' | 'ai';
+type TabType = 'jobs' | 'history' | 'diagnosis' | 'filter' | 'settings' | 'ai';
 
 function Popup() {
   const [activeTab, setActiveTab] = useState<TabType>('jobs');
 
   const tabs: { key: TabType; label: string; icon: string }[] = [
     { key: 'jobs', label: '职位', icon: '📋' },
+    { key: 'history', label: '历史', icon: '📝' },
     { key: 'diagnosis', label: '诊断', icon: '🔍' },
     { key: 'filter', label: '筛选', icon: '⚙️' },
     { key: 'settings', label: '设置', icon: '📄' },
@@ -47,6 +49,7 @@ function Popup() {
       {/* Content */}
       <main className="p-4 overflow-y-auto">
         {activeTab === 'jobs' && <JobListPanel />}
+        {activeTab === 'history' && <ApplyHistoryPanel />}
         {activeTab === 'diagnosis' && <DiagnosisPanel />}
         {activeTab === 'filter' && <FilterPanel />}
         {activeTab === 'settings' && <SettingsPanel />}

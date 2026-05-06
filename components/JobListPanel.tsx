@@ -8,6 +8,15 @@ interface GreetingResult {
   loading: boolean;
 }
 
+interface BatchApplyStatus {
+  isRunning: boolean;
+  currentIndex: number;
+  total: number;
+  successCount: number;
+  failCount: number;
+  lastError: string;
+}
+
 interface JobListPanelProps {
   onJobSelect?: (jobs: JobInfo[]) => void;
 }
@@ -20,6 +29,14 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
   const [error, setError] = useState('');
   const [config, setConfig] = useState<UserConfig | null>(null);
   const [greetings, setGreetings] = useState<Map<string, GreetingResult>>(new Map());
+  const [batchStatus, setBatchStatus] = useState<BatchApplyStatus>({
+    isRunning: false,
+    currentIndex: 0,
+    total: 0,
+    successCount: 0,
+    failCount: 0,
+    lastError: '',
+  });
 
   // 加载用户配置
   useEffect(() => {
@@ -231,6 +248,38 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
     setGreetings(new Map());
   };
 
+  // 批量打招呼
+  const startBatchApply = async () => {
+    if (selectedJobs.size === 0) return;
+
+    const selectedJobList = filteredJobs.filter(job => selectedJobs.has(job.id));
+
+    // 发送批量投递请求
+    chrome.runtime.sendMessage(
+      { type: 'START_BATCH_APPLY', jobs: selectedJobList },
+      (response) => {
+        if (response?.success) {
+          setBatchStatus(response.status);
+        }
+      }
+    );
+  };
+
+  // 定时获取批量投递状态
+  useEffect(() => {
+    if (!batchStatus.isRunning) return;
+
+    const interval = setInterval(() => {
+      chrome.runtime.sendMessage({ type: 'GET_BATCH_STATUS' }, (status) => {
+        if (status) {
+          setBatchStatus(status);
+        }
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [batchStatus.isRunning]);
+
   return (
     <div className="space-y-3">
       {/* 说明 */}
@@ -334,24 +383,72 @@ function JobListPanel({ onJobSelect }: JobListPanelProps) {
 
             {/* AI 操作按钮 */}
             {selectedJobs.size > 0 && (
-              <div className="flex gap-2">
-                <button
-                  onClick={generateGreetings}
-                  className="flex-1 py-1.5 rounded text-xs text-white bg-green-600 hover:bg-green-700 font-medium"
-                >
-                  ✨ 生成问候语
-                </button>
-                {greetings.size > 0 && (
+              <div className="space-y-2">
+                <div className="flex gap-2">
                   <button
-                    onClick={clearGreetings}
-                    className="px-2 py-1.5 rounded text-xs text-gray-600 bg-gray-100 hover:bg-gray-200"
+                    onClick={generateGreetings}
+                    className="flex-1 py-1.5 rounded text-xs text-white bg-green-600 hover:bg-green-700 font-medium"
                   >
-                    清除
+                    ✨ 生成问候语
                   </button>
-                )}
+                  {greetings.size > 0 && (
+                    <button
+                      onClick={clearGreetings}
+                      className="px-2 py-1.5 rounded text-xs text-gray-600 bg-gray-100 hover:bg-gray-200"
+                    >
+                      清除
+                    </button>
+                  )}
+                </div>
+                {/* 批量打招呼按钮 */}
+                <button
+                  onClick={startBatchApply}
+                  disabled={batchStatus.isRunning}
+                  className={`w-full py-1.5 rounded text-xs text-white font-medium ${
+                    batchStatus.isRunning
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : 'bg-orange-600 hover:bg-orange-700'
+                  }`}
+                >
+                  {batchStatus.isRunning
+                    ? `正在投递 ${batchStatus.currentIndex}/${batchStatus.total}...`
+                    : `🚀 批量打招呼 (${selectedJobs.size})`}
+                </button>
               </div>
             )}
           </div>
+
+          {/* 批量投递状态显示 */}
+          {batchStatus.isRunning && (
+            <section className="bg-blue-50 rounded-lg p-2 border border-blue-200">
+              <p className="text-xs text-blue-700 font-medium">
+                正在批量投递...
+              </p>
+              <div className="mt-1 text-xs text-gray-600">
+                <p>进度: {batchStatus.currentIndex} / {batchStatus.total}</p>
+                <p>成功: {batchStatus.successCount} | 失败: {batchStatus.failCount}</p>
+                {batchStatus.lastError && (
+                  <p className="text-red-600">错误: {batchStatus.lastError}</p>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* 批量投递完成提示 */}
+          {!batchStatus.isRunning && batchStatus.total > 0 && batchStatus.currentIndex === batchStatus.total && (
+            <section className={`rounded-lg p-2 border ${
+              batchStatus.failCount === 0 ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'
+            }`}>
+              <p className={`text-xs font-medium ${
+                batchStatus.failCount === 0 ? 'text-green-700' : 'text-yellow-700'
+              }`}>
+                {batchStatus.failCount === 0 ? '✓ 批量投递完成' : '⚠ 批量投递完成（部分失败）'}
+              </p>
+              <div className="mt-1 text-xs text-gray-600">
+                <p>成功: {batchStatus.successCount} | 失败: {batchStatus.failCount}</p>
+              </div>
+            </section>
+          )}
 
           {/* 职位卡片列表 */}
           <div className="space-y-2 max-h-[300px] overflow-y-auto">

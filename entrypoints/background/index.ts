@@ -4,6 +4,112 @@ import { getUserConfig, getAIConfig, getResume, addApplyHistory } from '../../ut
 // 存储当前页面职位信息
 let currentJobs: JobInfo[] = [];
 
+// 随机延迟函数
+function randomDelay(min: number, max: number): Promise<void> {
+  const delay = min + Math.random() * (max - min);
+  return new Promise(resolve => setTimeout(resolve, delay));
+}
+
+// 批量投递状态
+let batchApplyStatus: {
+  isRunning: boolean;
+  currentIndex: number;
+  total: number;
+  successCount: number;
+  failCount: number;
+  lastError: string;
+} = {
+  isRunning: false,
+  currentIndex: 0,
+  total: 0,
+  successCount: 0,
+  failCount: 0,
+  lastError: '',
+};
+
+// 批量投递
+async function startBatchApply(jobs: JobInfo[]): Promise<void> {
+  if (batchApplyStatus.isRunning) {
+    console.log('[批量投递] 已有投递任务正在进行');
+    return;
+  }
+
+  batchApplyStatus = {
+    isRunning: true,
+    currentIndex: 0,
+    total: jobs.length,
+    successCount: 0,
+    failCount: 0,
+    lastError: '',
+  };
+
+  console.log('[批量投递] 开始批量投递，共', jobs.length, '个职位');
+
+  for (let i = 0; i < jobs.length; i++) {
+    const job = jobs[i];
+    batchApplyStatus.currentIndex = i + 1;
+    console.log(`[批量投递] 正在处理第 ${i + 1}/${jobs.length} 个: ${job.title} - ${job.company}`);
+
+    try {
+      // 1. 生成问候语
+      const greeting = await generateGreeting(job);
+      console.log('[批量投递] 问候语生成完成');
+
+      // 2. 打开详情页标签（不激活，后台打开）
+      const tab = await chrome.tabs.create({ url: job.url, active: false });
+      console.log('[批量投递] 打开详情页:', tab.id);
+
+      // 3. 等待页面加载（随机 2-4 秒）
+      await randomDelay(2000, 4000);
+
+      // 4. 发送消息给详情页 Content Script
+      try {
+        const result = await chrome.tabs.sendMessage(tab.id!, { type: 'SEND_GREETING', greeting });
+        console.log('[批量投递] 发送结果:', result);
+
+        if (result?.success) {
+          batchApplyStatus.successCount++;
+          // 记录投递历史
+          await addApplyHistory({
+            jobId: job.id,
+            jobTitle: job.title,
+            company: job.company,
+            appliedAt: Date.now(),
+            greeting: greeting,
+          });
+          console.log('[批量投递] 投递成功，已记录历史');
+        } else {
+          batchApplyStatus.failCount++;
+          batchApplyStatus.lastError = result?.message || '发送失败';
+          console.log('[批量投递] 发送失败:', result?.message);
+        }
+      } catch (msgError) {
+        batchApplyStatus.failCount++;
+        batchApplyStatus.lastError = String(msgError);
+        console.log('[批量投递] 消息发送失败:', msgError);
+      }
+
+      // 5. 关闭详情页标签
+      await chrome.tabs.remove(tab.id!);
+      console.log('[批量投递] 关闭详情页');
+
+      // 6. 随机延迟 5-10 秒（防检测）
+      if (i < jobs.length - 1) {
+        const delayTime = 5000 + Math.random() * 5000;
+        console.log(`[批量投递] 等待 ${Math.round(delayTime / 1000)} 秒后处理下一个...`);
+        await new Promise(resolve => setTimeout(resolve, delayTime));
+      }
+    } catch (error) {
+      batchApplyStatus.failCount++;
+      batchApplyStatus.lastError = String(error);
+      console.log('[批量投递] 处理失败:', error);
+    }
+  }
+
+  batchApplyStatus.isRunning = false;
+  console.log(`[批量投递] 完成！成功: ${batchApplyStatus.successCount}, 失败: ${batchApplyStatus.failCount}`);
+}
+
 // 筛选职位
 function filterJob(job: JobInfo, config: UserConfig): boolean {
   // 薪资筛选
@@ -211,6 +317,19 @@ export default defineBackground(() => {
         });
         console.log('[投递记录]', message.job.title, '-', message.job.company);
         sendResponse({ success: true });
+        break;
+
+      case 'START_BATCH_APPLY':
+        startBatchApply(message.jobs).then(() => {
+          sendResponse({
+            success: true,
+            status: batchApplyStatus,
+          });
+        });
+        return true;
+
+      case 'GET_BATCH_STATUS':
+        sendResponse(batchApplyStatus);
         break;
     }
 
